@@ -7,6 +7,21 @@ import React from 'react';
 interface HeatMapProps {
   data: PomodoroRecordGet[],
 }
+interface ProjectSummary {
+  project: string;
+  minutes: number;
+}
+
+interface DaySummary {
+  date: string; // 'YYYY-MM-DD'
+  minutes: number;
+  projects: ProjectSummary[];
+  entries: PomodoroRecordGet[]; // reuso tu interfaz
+  project: string; // proyecto principal o '-'
+  task?: any;
+  x: number;
+  y: number;
+}
 
 const HeatMap = ({ data }: HeatMapProps) => {
   console.log(data);
@@ -16,10 +31,10 @@ const HeatMap = ({ data }: HeatMapProps) => {
   const [hoveredDay, setHoveredDay] = useState<any>(null);
 
   // State for modal
-  const [modal, setModal] = useState<{
-    visible: boolean;
-    data: PomodoroRecordGet | null;
-  }>({ visible: false, data: null });
+  const [modal, setModal] = useState<{ visible: boolean; data: DaySummary | null }>({
+    visible: false,
+    data: null
+  });
 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -37,7 +52,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
   // Heatmap Config - Reduced height
   const config = {
-    box: 7,  // Reduced from 8 to 7
+    box: 7,
     spacing: 1,
     year: 2025,
     weekDays: ["S", "M", "T", "W", "T", "F", "S"],
@@ -67,11 +82,11 @@ const HeatMap = ({ data }: HeatMapProps) => {
   // Function to format date
   const formatDate = (date: Date | string): string => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    return dateObj.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return dateObj.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
@@ -85,62 +100,95 @@ const HeatMap = ({ data }: HeatMapProps) => {
   };
 
   // Generate data for all days of the year
-  const generateYearData  = useMemo(() => {
-    // 1. Group by date and add minutes
-    const dailySummary = new Map();
-    
+  const generateYearData = useMemo(() => {
+    // Map: 'YYYY-MM-DD' -> { date, minutes, projects: Map<project, minutes>, entries: [] }
+    const dailySummary = new Map<string, {
+      date: string;
+      minutes: number;
+      projects: Map<string, number>;
+      entries: any[];
+    }>();
+
+    const safeParseDate = (raw: any) => {
+      if (raw instanceof Date) return raw;
+      if (typeof raw === 'string') {
+        let candidate = raw;
+        if (candidate.includes(' ') && !candidate.includes('T')) candidate = candidate.replace(' ', 'T');
+        let d = new Date(candidate);
+        if (isNaN(d.getTime())) {
+          const onlyDate = (raw as string).split(' ')[0];
+          d = new Date(onlyDate);
+        }
+        return d;
+      }
+      return new Date(String(raw));
+    };
+
     data.forEach(d => {
-      // Extract date without hour
-      const dateStr = d.date instanceof Date 
-        ? d.date.toISOString().slice(0, 10) 
-        : d.date.split(' ')[0];
-      
-      if (dailySummary.has(dateStr)) {
-        const existing = dailySummary.get(dateStr);
-        existing.minutes += d.minutes;
-      } else {
+      const minutesNum = Number(d.minutes) || 0;
+      const dateObj = safeParseDate(d.date);
+      // Key YYYY-MM-DD
+      const dateStr = dateObj.toISOString().slice(0, 10);
+
+      if (!dailySummary.has(dateStr)) {
         dailySummary.set(dateStr, {
           date: dateStr,
-          minutes: d.minutes,
-          project: d.project,
-          task: d.task
+          minutes: 0,
+          projects: new Map(),
+          entries: []
         });
       }
+
+      const cur = dailySummary.get(dateStr)!;
+      cur.minutes += minutesNum;
+      cur.entries.push({
+        ...d,
+        minutes: minutesNum,
+        date: dateObj.toISOString()
+      });
+
+      const projKey = (d.project ?? 'Sin proyecto') as string;
+      cur.projects.set(projKey, (cur.projects.get(projKey) || 0) + minutesNum);
     });
-    
-    const allDates = [];
+
+    const allDates: Array<any> = [];
 
     for (let m = 0; m < 12; m++) {
       const start = new Date(config.year, m, 1);
       const end = new Date(config.year, m + 1, 0);
-      
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().slice(0, 10);
+
+      for (let dd = new Date(start); dd <= end; dd.setDate(dd.getDate() + 1)) {
+        const dateStr = dd.toISOString().slice(0, 10);
         const entry = dailySummary.get(dateStr);
-        
-        const month = d.getMonth();
-        const week = Math.floor((d.getDate() + new Date(d.getFullYear(), month, 1).getDay() - 1) / 7);
+
+        const month = dd.getMonth();
+        const week = Math.floor((dd.getDate() + new Date(dd.getFullYear(), month, 1).getDay() - 1) / 7);
         const x = 25 + month * 7 * (config.box + config.spacing) + week * (config.box + config.spacing);
-        const y = 20 + d.getDay() * (config.box + config.spacing);
+        const y = 20 + dd.getDay() * (config.box + config.spacing);
 
         allDates.push({
           date: dateStr,
           minutes: entry?.minutes ?? 0,
-          project: entry?.project ?? "-",
-          task: entry?.task ?? undefined,
+          // Convert projects Map -> array [{ project, minutes }]
+          projects: entry
+            ? Array.from(entry.projects.entries()).map(([project, minutes]) => ({ project, minutes }))
+            : [],
+          entries: entry?.entries ?? [],
+          project: entry?.projects && entry.projects.size === 1 ? Array.from(entry.projects.keys())[0] : '-',
+          task: undefined,
           x,
           y
         });
       }
     }
-    
+
     return allDates;
-  }, [data]);
+  }, [data, config.year, config.box, config.spacing]);
 
   // Draw square with effects
   const drawSquare = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, isHovered: boolean = false) => {
     const radius = 1;
-    
+
     // Shadow for hover
     if (isHovered) {
       ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
@@ -168,12 +216,12 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
   // Draw text with better rendering
   const drawText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, options: any = {}) => {
-    const { 
-      fontSize = 10, 
-      color = '#8b949e', 
-      align = 'left', 
+    const {
+      fontSize = 10,
+      color = '#8b949e',
+      align = 'left',
       baseline = 'top',
-      bold = false 
+      bold = false
     } = options;
 
     ctx.fillStyle = color;
@@ -229,7 +277,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
     // Draw heatmap squares
     const yearData = generateYearData;
-    
+
     yearData.forEach(day => {
       const isHovered = hoveredDay && hoveredDay.date === day.date;
       drawSquare(ctx, day.x, day.y, getColor(day.minutes), isHovered);
@@ -271,7 +319,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
     const y = e.clientY - rect.top;
 
     const yearData = generateYearData;
-    const clickedDay = yearData.find(day => 
+    const clickedDay = yearData.find(day =>
       x >= day.x && x <= day.x + config.box &&
       y >= day.y && y <= day.y + config.box
     );
@@ -294,14 +342,14 @@ const HeatMap = ({ data }: HeatMapProps) => {
     const y = e.clientY - rect.top;
 
     const yearData = generateYearData;
-    const newHoveredDay = yearData.find(day => 
+    const newHoveredDay = yearData.find(day =>
       x >= day.x && x <= day.x + config.box &&
       y >= day.y && y <= day.y + config.box
     );
 
     if (newHoveredDay !== hoveredDay) {
       setHoveredDay(newHoveredDay);
-      
+
       if (newHoveredDay) {
         canvas.style.cursor = 'pointer';
       } else {
@@ -345,13 +393,13 @@ const HeatMap = ({ data }: HeatMapProps) => {
         onMouseEnter={showHeatMap}
         onMouseLeave={hideHeatMap}
       />
-      
+
       <div
         id="orderHeatMapBox"
         className={isVisible ? 'visible' : ''}
         onMouseEnter={showHeatMap}
         onMouseLeave={handleMouseLeave}
-        style={{ 
+        style={{
           background: '#1a1a1a',
           borderRadius: '12px',
           padding: '10px 10px 0 5px',
@@ -364,11 +412,11 @@ const HeatMap = ({ data }: HeatMapProps) => {
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          style={{ 
+          style={{
             display: 'block',
             borderRadius: '8px'
           }}
-          />
+        />
       </div>
 
       {/* Informational modal */}
@@ -403,14 +451,14 @@ const HeatMap = ({ data }: HeatMapProps) => {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '24px'
             }}>
-              <h2 style={{ 
-                margin: 0, 
+              <h2 style={{
+                margin: 0,
                 color: '#ffffff',
                 fontSize: '20px',
                 fontWeight: 'bold'
@@ -444,102 +492,100 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
             {/* Content */}
             <div style={{ lineHeight: '1.6' }}>
-              <div style={{ 
-                background: '#1a1a1a', 
-                padding: '16px', 
+              <div style={{
+                background: '#1a1a1a',
+                padding: '16px',
                 borderRadius: '8px',
                 marginBottom: '20px',
                 border: '1px solid #333333'
               }}>
-                <h3 style={{ 
-                  margin: '0 0 8px 0', 
+                <h3 style={{
+                  margin: '0 0 8px 0',
                   color: '#53ae5e',
                   fontSize: '16px'
                 }}>
                   {formatDate(modal.data.date)}
                 </h3>
-                <div style={{ 
+                <div style={{
                   color: '#888888',
                   fontSize: '14px'
                 }}>
-                  {modal.data.date.toLocaleString()}
+                  {formatDate(modal.data.date)}
                 </div>
               </div>
 
               {modal.data.minutes > 0 ? (
                 <div>
-                  <div style={{ 
+                  <div style={{
                     display: 'flex',
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    alignItems: 'center',
                     marginBottom: '12px'
                   }}>
-                    <span style={{ 
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: '#53ae5e'
-                    }}>
+                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#53ae5e' }}>
                       {formatTime(modal.data.minutes)}
                     </span>
                   </div>
 
                   <div style={{ marginBottom: '12px' }}>
-                    <strong style={{ color: '#ffffff' }}>Project:</strong>
-                    <span style={{ marginLeft: '8px', color: '#888888' }}>
-                      {modal.data.project}
-                    </span>
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <strong style={{ color: '#ffffff' }}>Task:</strong>
-                    <span style={{ marginLeft: '8px', color: '#888888' }}>
-                      {modal.data.task?.name}
-                    </span>
-                  </div>
-
-                  <div style={{ 
-                    marginTop: '20px',
-                    padding: '12px',
-                    background: '#1a1a1a',
-                    borderRadius: '6px',
-                    border: '1px solid #333333'
-                  }}>
-                    <div style={{ 
-                      fontSize: '12px',
-                      color: '#888888',
-                      marginBottom: '4px'
-                    }}>
-                      Daily Productivity
+                    <strong style={{ color: '#ffffff' }}>Projects:</strong>
+                    <div style={{ marginTop: '8px' }}>
+                      {modal.data.projects && modal.data.projects.length > 0 ? (
+                        modal.data.projects.map((p: any) => (
+                          <div key={p.project} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ color: '#ffffff' }}>{p.project}</span>
+                            <span style={{ color: '#888888' }}>{formatTime(p.minutes)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ color: '#888888' }}>No project data</div>
+                      )}
                     </div>
-                    <div style={{ 
-                      fontSize: '14px',
-                      color: modal.data.minutes >= 240 ? '#74c69d' : 
-                            modal.data.minutes >= 120 ? '#f1c40f' : '#ff6b6b'
-                    }}>
-                      {modal.data.minutes >= 240 ? 'Excellent' : 
-                        modal.data.minutes >= 120 ? 'Good' : 'Can be improved'}
+                  </div>
+
+                  {/* Opcional: detalle de entradas por día */}
+                  {modal.data.entries && modal.data.entries.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                      <strong style={{ color: '#ffffff' }}>Logs</strong>
+                      <div style={{ marginTop: '8px', maxHeight: '140px', overflowY: 'auto' }}>
+                        {modal.data.entries.map((e: any, i: number) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #2a2a2a' }}>
+                            <div>
+                              <div style={{ color: '#ffffff', fontSize: '13px' }}>{e.task?.name ?? '—'}
+                                <span style={{ marginLeft: '10px', color: '#888888', fontSize: '12px' }}>{new Date(e.date).toLocaleTimeString()}</span>
+                              </div>
+                            </div>
+                            <div style={{ color: '#888888', alignSelf: 'center' }}>{formatTime(e.minutes)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '20px' }}>
+                    <strong style={{ color: '#ffffff' }}>Resume</strong>
+                    <div style={{ color: '#888888', marginTop: '6px' }}>
+                      Main project:{' '}
+                      <span style={{ color: '#ffffff' }}>
+                        {modal.data.projects && modal.data.projects.length > 0
+                          ? modal.data.projects.reduce((a: any, b: any) => (b.minutes > a.minutes ? b : a)).project
+                          : '—'}
+                      </span>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div style={{ 
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#888888'
-                }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888888' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>😴</div>
-                  <div style={{ fontSize: '16px', marginBottom: '8px' }}>
-                    No activity recorded
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#666666' }}>
-                    No productivity data for this day
-                  </div>
+                  <div style={{ fontSize: '16px', marginBottom: '8px' }}>No activity recorded</div>
+                  <div style={{ fontSize: '14px', color: '#666666' }}>No productivity data for this day</div>
                 </div>
               )}
+
             </div>
 
             {/* Footer */}
-            <div style={{ 
+            <div style={{
               marginTop: '24px',
               paddingTop: '16px',
               borderTop: '1px solid #333333',
