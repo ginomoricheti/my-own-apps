@@ -10,7 +10,7 @@ import SettingsPopup from '../SettingsPopup/SettingsPopup';
 import HeatMap from '../../../history/ui/HeatMap/HeatMap';
 import { CategoryGet, ProjectGet, TaskGet, PomodoroRecordGet } from '@/shared/types';
 import { IconProp } from "@fortawesome/fontawesome-svg-core";
-import { invoke } from '@tauri-apps/api/core';
+import { usePomodoros } from "@/shared/context/PomodorosContext";
 
 interface CountdownTimerProps {
   categories: CategoryGet[],
@@ -27,6 +27,8 @@ const CountdownTimer = ({ categories, tasks, projects, pomodoros }: CountdownTim
   const [breakTime, setBreakTime] = useState(10);
 
   const [sessionStartSeconds, setSessionStartSeconds] = useState(0);
+
+  const { addPomodoro } = usePomodoros();
 
   const date = new Date();
   const day = date.toLocaleDateString('en-US', { weekday: 'long' });
@@ -71,7 +73,7 @@ const CountdownTimer = ({ categories, tasks, projects, pomodoros }: CountdownTim
   const handleSettingsSave = (newWorkTime: number, newBreakTime: number) => {
     setWorkTime(newWorkTime);
     setBreakTime(newBreakTime);
-    
+
     if (isActive) {
       stop();
       resetTimer();
@@ -97,16 +99,14 @@ const CountdownTimer = ({ categories, tasks, projects, pomodoros }: CountdownTim
     const workedMinutes = Math.floor(sessionWorkedSeconds / 60);
 
     try {
-      await invoke('create_pomodoro', {
-        pomodoro: {
-          minutes: workedMinutes,
-          idProject: project.id,
-          idTask: Number(task),
-          idGoal: goal.id,
-        }
+      await addPomodoro({
+        minutes: workedMinutes,
+        idProject: project.id,
+        idTask: Number(task),   // asegúrate que no sea NaN
+        idGoal: goal.id,
       });
       toast.success('Pomodoro saved correctly.');
-      
+
       setSessionStartSeconds(prev => prev + sessionWorkedSeconds);
       resetTimer();
 
@@ -184,7 +184,7 @@ const CountdownTimer = ({ categories, tasks, projects, pomodoros }: CountdownTim
         You've worked for <span>{formattedWorkedTime}</span>
       </h4>
 
-      <HeatMap data={pomodoros}/>
+      <HeatMap data={pomodoros} />
     </>
   );
 };

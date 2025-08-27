@@ -13,19 +13,17 @@ interface ProjectSummary {
 }
 
 interface DaySummary {
-  date: string; // 'YYYY-MM-DD'
+  date: string;
   minutes: number;
   projects: ProjectSummary[];
-  entries: PomodoroRecordGet[]; // reuso tu interfaz
-  project: string; // proyecto principal o '-'
+  entries: PomodoroRecordGet[];
+  project: string;
   task?: any;
   x: number;
   y: number;
 }
 
 const HeatMap = ({ data }: HeatMapProps) => {
-  console.log(data);
-
   const [isVisible, setIsVisible] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredDay, setHoveredDay] = useState<any>(null);
@@ -81,7 +79,21 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
   // Function to format date
   const formatDate = (date: Date | string): string => {
-    const dateObj = date instanceof Date ? date : new Date(date);
+    let dateObj: Date;
+
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        const [year, month, day] = date.split('-').map(Number);
+        dateObj = new Date(year, month - 1, day);
+      } else {
+        dateObj = new Date(date);
+      }
+    } else {
+      dateObj = new Date(date);
+    }
+
     return dateObj.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -94,9 +106,16 @@ const HeatMap = ({ data }: HeatMapProps) => {
   const formatTime = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    if (hours === 0) return `${mins} minutes`;
-    if (mins === 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
-    return `${hours} hour${hours > 1 ? 's' : ''} and ${mins} minutes`;
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h ${hours > 1 ? 's' : ''}`;
+    return `${hours} h${hours > 1 ? 's' : ''} ${mins}m`;
+  };
+
+  const toLocalDateStr = (d: Date) => {
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
   };
 
   // Generate data for all days of the year
@@ -111,16 +130,43 @@ const HeatMap = ({ data }: HeatMapProps) => {
 
     const safeParseDate = (raw: any) => {
       if (raw instanceof Date) return raw;
+
       if (typeof raw === 'string') {
-        let candidate = raw;
-        if (candidate.includes(' ') && !candidate.includes('T')) candidate = candidate.replace(' ', 'T');
+        const trimmed = raw.trim();
+
+        // Para fechas con tiempo como "2025-08-27 17:27:30"
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
+          const [datePart, timePart] = trimmed.split(' ');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hour, minute, second] = timePart.split(':').map(Number);
+
+          // Crear fecha en zona local explícitamente
+          return new Date(year, month - 1, day, hour, minute, second);
+        }
+
+        // Para fechas solo con fecha como "2025-08-27"
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          const [year, month, day] = trimmed.split('-').map(Number);
+          return new Date(year, month - 1, day);
+        }
+
+        // Fallback para otros formatos (mantener la lógica original)
+        let candidate = trimmed;
+        if (candidate.includes(' ') && !candidate.includes('T')) {
+          candidate = candidate.replace(' ', 'T');
+        }
+
         let d = new Date(candidate);
         if (isNaN(d.getTime())) {
-          const onlyDate = (raw as string).split(' ')[0];
-          d = new Date(onlyDate);
+          const onlyDate = candidate.split('T')[0] || candidate.split(' ')[0];
+          const [year, month, day] = onlyDate.split('-').map(Number);
+          if (year && month && day) {
+            d = new Date(year, month - 1, day);
+          }
         }
         return d;
       }
+
       return new Date(String(raw));
     };
 
@@ -128,7 +174,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
       const minutesNum = Number(d.minutes) || 0;
       const dateObj = safeParseDate(d.date);
       // Key YYYY-MM-DD
-      const dateStr = dateObj.toISOString().slice(0, 10);
+      const dateStr = toLocalDateStr(dateObj);
 
       if (!dailySummary.has(dateStr)) {
         dailySummary.set(dateStr, {
@@ -158,11 +204,12 @@ const HeatMap = ({ data }: HeatMapProps) => {
       const end = new Date(config.year, m + 1, 0);
 
       for (let dd = new Date(start); dd <= end; dd.setDate(dd.getDate() + 1)) {
-        const dateStr = dd.toISOString().slice(0, 10);
+        const dateStr = toLocalDateStr(dd);
         const entry = dailySummary.get(dateStr);
 
         const month = dd.getMonth();
-        const week = Math.floor((dd.getDate() + new Date(dd.getFullYear(), month, 1).getDay() - 1) / 7);
+        const firstDayOfMonth = new Date(dd.getFullYear(), month, 1).getDay();
+        const week = Math.floor((dd.getDate() + firstDayOfMonth - 1) / 7);
         const x = 25 + month * 7 * (config.box + config.spacing) + week * (config.box + config.spacing);
         const y = 20 + dd.getDay() * (config.box + config.spacing);
 
@@ -183,7 +230,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
     }
 
     return allDates;
-  }, [data, config.year, config.box, config.spacing]);
+  }, [JSON.stringify(data), config.year, config.box, config.spacing]);
 
   // Draw square with effects
   const drawSquare = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string, isHovered: boolean = false) => {
@@ -315,13 +362,21 @@ const HeatMap = ({ data }: HeatMapProps) => {
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
 
     const yearData = generateYearData;
+
+    // Debug: mostrar todos los días con datos y sus coordenadas
+    const daysWithData = yearData.filter(day => day.minutes > 0);
+    console.log('Days with data and their positions:');
+    daysWithData.forEach(day => {
+      console.log(`${day.date}: x=${day.x}-${day.x + config.box}, y=${day.y}-${day.y + config.box}, minutes=${day.minutes}`);
+    });
+
     const clickedDay = yearData.find(day =>
-      x >= day.x && x <= day.x + config.box &&
-      y >= day.y && y <= day.y + config.box
+      clickX >= day.x && clickX <= day.x + config.box &&
+      clickY >= day.y && clickY <= day.y + config.box
     );
 
     if (clickedDay) {
@@ -376,7 +431,7 @@ const HeatMap = ({ data }: HeatMapProps) => {
     if (isVisible) {
       drawHeatMap();
     }
-  }, [isVisible, drawHeatMap, hoveredDay]);
+  }, [isVisible, drawHeatMap, hoveredDay, data]);
 
   useEffect(() => {
     return () => {
@@ -547,7 +602,13 @@ const HeatMap = ({ data }: HeatMapProps) => {
                   {modal.data.entries && modal.data.entries.length > 0 && (
                     <div style={{ marginTop: '12px' }}>
                       <strong style={{ color: '#ffffff' }}>Logs</strong>
-                      <div style={{ marginTop: '8px', maxHeight: '140px', overflowY: 'auto' }}>
+                      <div style={{
+                        marginTop: '8px',
+                        maxHeight: '140px',
+                        overflowY: 'auto',
+                        scrollbarWidth: 'none', /* Firefox */
+                        msOverflowStyle: 'none', /* IE/Edge */
+                      }}>
                         {modal.data.entries.map((e: any, i: number) => (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #2a2a2a' }}>
                             <div>
