@@ -39,17 +39,17 @@ const EndSessionPopup = ({
       setSelectedCategoryId(0);
     }
   }, [isOpen]);
-  
+
   const tasksOptions = tasks.map(task => ({
     value: task.id,
     label: task.name,
   }));
-  
+
   const categoryOptions = categories.map(cat => ({
     value: cat.id,
     label: cat.name,
   }));
-  
+
   const currentProject = projects.find(p => p.id === selectedProject?.id);
 
   return (
@@ -80,11 +80,11 @@ const EndSessionPopup = ({
             valueId={selectedCategoryId}
             onChange={(id) => setSelectedCategoryId(id)}
           />
-          
+
           <SelectorCreatable
             label="Goal"
             items={currentProject?.goals || []}
-            valueId={selectedGoal?.id || 0}  // <--- use 0 si null
+            valueId={selectedGoal?.id || 0}
             mapItem={(goal) => ({ value: goal.id, label: goal.title })}
             onChange={(goalId) => {
               const goal = currentProject?.goals?.find(g => g.id === goalId) || null;

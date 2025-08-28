@@ -102,7 +102,7 @@ const CountdownTimer = ({ categories, tasks, projects, pomodoros }: CountdownTim
       await addPomodoro({
         minutes: workedMinutes,
         idProject: project.id,
-        idTask: Number(task),   // asegúrate que no sea NaN
+        idTask: Number(task),
         idGoal: goal.id,
       });
       toast.success('Pomodoro saved correctly.');

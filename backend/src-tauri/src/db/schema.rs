@@ -11,7 +11,7 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
             name VARCHAR(255) NOT NULL,
             total_time_minutes INTEGER DEFAULT 0,
             color VARCHAR(7) NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (datetime('now', 'localtime'))
         );
 
         CREATE TABLE IF NOT EXISTS projects (
@@ -20,8 +20,8 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
             id_category INTEGER NOT NULL,
             color VARCHAR(7),
             total_time_minutes INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (id_category) REFERENCES categories(id) ON DELETE CASCADE
         );
 
@@ -32,8 +32,8 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
             target_minutes INTEGER DEFAULT 0,
             completed_minutes INTEGER DEFAULT 0,
             is_completed BOOLEAN DEFAULT FALSE,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            updated_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (id_project) REFERENCES projects(id) ON DELETE CASCADE
         );
 
@@ -42,8 +42,8 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
             name VARCHAR(255) NOT NULL,
             color VARCHAR(7),
             total_time_minutes INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
+            updated_at DATETIME DEFAULT (datetime('now', 'localtime'))
         );
 
         CREATE TABLE IF NOT EXISTS pomodoros (
@@ -52,7 +52,7 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
             id_project INTEGER NOT NULL,
             id_goal INTEGER,
             id_task INTEGER NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (datetime('now', 'localtime')),
             FOREIGN KEY (id_project) REFERENCES projects(id) ON DELETE CASCADE,
             FOREIGN KEY (id_goal) REFERENCES goals(id) ON DELETE SET NULL,
             FOREIGN KEY (id_task) REFERENCES tasks(id) ON DELETE CASCADE
@@ -97,11 +97,7 @@ pub fn create_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(qry)?;
 
     // Insert example project if there are no projects yet
-    let count: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM projects",
-        [],
-        |row| row.get(0),
-    )?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))?;
     if count == 0 {
         conn.execute(
             "INSERT INTO projects (name, id_category, color) VALUES (?1, ?2, ?3)",
