@@ -26,6 +26,7 @@ tauri-plugin-log = "2"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 polars = { version = "0.50.0", features = ["lazy", "parquet", "csv", "json"] }
 tauri-plugin-opener = "2.4.0"
+windows = { version = "0.61.3", features = ["Win32_System_Power"] }
 
 [profile.dev]
 # Configuración para desarrollo con mejor debugging

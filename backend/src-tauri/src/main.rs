@@ -1,19 +1,20 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use tauri_plugin_opener;
 
+mod analytics;
+mod commands;
 mod config;
 mod db;
-mod commands;
-mod services;
 mod models;
-mod analytics;
+mod services;
+mod utils;
 
 use config::get_db_path;
-use db::Database;
 use db::schema::create_schema;
 use db::triggers::create_triggers;
-use tauri::Manager;
+use db::Database;
 use std::sync::{Arc, Mutex};
+use tauri::Manager;
 
 fn main() {
     tauri::Builder::default()
@@ -30,6 +31,8 @@ fn main() {
             commands::delete_goal,
             commands::delete_pomodoro,
             commands::get_summary_report,
+            commands::prevent_sleep,
+            commands::allow_sleep,
         ])
         .setup(|app| {
             println!("Running app...");
@@ -40,11 +43,10 @@ fn main() {
 
             // 2. DB Connection
             let db_path_str = db_path.to_string_lossy();
-            let mut database = Database::new(&db_path_str)
-                .unwrap_or_else(|e| {
-                    eprintln!("Error connecting to the database: {}", e);
-                    Database::new_in_memory().expect("It couldn't even be done in memory.")
-                });
+            let mut database = Database::new(&db_path_str).unwrap_or_else(|e| {
+                eprintln!("Error connecting to the database: {}", e);
+                Database::new_in_memory().expect("It couldn't even be done in memory.")
+            });
 
             // 3. Schema & Triggers setup
             {
@@ -66,7 +68,6 @@ fn main() {
 
             Ok(())
         })
-
         .run(tauri::generate_context!())
         .expect("Error running the app");
 }

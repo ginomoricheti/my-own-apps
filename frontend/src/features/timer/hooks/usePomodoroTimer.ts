@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import sound from '@/assets/sounds/sound_6.mp3';
+import { invoke } from '@tauri-apps/api/core';
 
 type usePomodoroTimerProps = {
   workTime: number;
@@ -82,12 +83,14 @@ const usePomodoroTimer = ({ workTime, breakTime, onModeChange }: usePomodoroTime
     if (!isActive) {
       setIsActive(true);
       document.documentElement.style.backgroundColor = '#53ae5e';
+      invoke('prevent_sleep').catch(err => console.error('Error prevent_sleep: ', err))
     }
   }, [isActive]);
 
   const stop = useCallback(() => {
     setIsActive(false);
     document.documentElement.style.backgroundColor = '#d90f26';
+    invoke('allow_sleep').catch(err => console.error('Error allow_sleep: ', err))
   }, []);
 
   const reset = useCallback(() => {
