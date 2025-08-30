@@ -12,7 +12,6 @@ const Card = ({ projectId }: CardProps) => {
   if (!data) return null;
 
   const hours = Math.floor(data.totalTimeMinutes / 60);
-  const minutes = data.totalTimeMinutes % 60;
 
   const currentGoal = data.goals?.find(goal => !goal.isCompleted);
 
@@ -28,23 +27,22 @@ const Card = ({ projectId }: CardProps) => {
           <span>Actual Goal:</span> {currentGoal.title}
         </p>
         <p>
-          <span>Remaining Time:</span> {remainingHours}h {remainingMins}m
+          <span>Remaining:</span> {remainingHours}h {remainingMins}m
         </p>
       </>
     );
   } else {
-    goalInfo = 
-    <>
-      <p><span>Actual Goal:</span> No available goals</p>
-    </>
+    goalInfo =
+      <>
+        <p><span>Actual Goal:</span> No available goals</p>
+      </>
   }
 
   return (
     <div className={styles.cardBox}>
+      <p className={styles.time}><span>{hours}h</span></p>
       <h3>{data.name}</h3>
       <div className={styles.details}>
-        <p><span>Type:</span> {data.categoryName}</p>
-        <p><span>Total time:</span> {hours}h {minutes}m</p>
         {goalInfo}
       </div>
     </div>
