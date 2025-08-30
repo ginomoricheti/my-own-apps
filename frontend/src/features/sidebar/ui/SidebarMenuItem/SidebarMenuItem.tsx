@@ -4,7 +4,7 @@ import styles from "./SidebarMenuItem.module.css";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import CreateGoalPopup from "./CreateGoalPopup/CreateGoalPopup";
 import CreateProjectPopup from "./CreateProjectPopup/CreateProjectPopup";
-
+import DeletePopup from "./DeletePopup/DeletePopup";
 
 interface SubItem {
   label: string;
@@ -21,7 +21,7 @@ interface SidebarMenuItemProps {
   categories?: any[];
 }
 
-type ActivePopup = 'goal' | 'project' | null;
+type ActivePopup = 'goal' | 'project' | 'deleteGoal' | 'deleteProject' | null;
 
 const SidebarMenuItem = ({
   icon,
@@ -43,6 +43,10 @@ const SidebarMenuItem = ({
       setActivePopup('goal');
     } else if (itemLabel === "Create Project") {
       setActivePopup('project');
+    } else if (itemLabel === "Delete Goals") {
+      setActivePopup('deleteGoal');
+    } else if (itemLabel === "Delete Projects") {
+      setActivePopup('deleteProject');
     } else {
       if (subItems) {
         toggleSubMenu();
@@ -88,10 +92,24 @@ const SidebarMenuItem = ({
         onClose={closePopup}
       />
 
-      {/* Popup for create a  Project */}
+      {/* Popup for create a Project */}
       <CreateProjectPopup
         isOpen={activePopup === 'project'}
         onClose={closePopup}
+      />
+
+      {/* Popup for delete a Goal */}
+      <DeletePopup
+        isOpen={activePopup === 'deleteGoal'}
+        onClose={closePopup}
+        type="goal"
+      />
+
+      {/* Popup for delete a Project */}
+      <DeletePopup
+        isOpen={activePopup === 'deleteProject'}
+        onClose={closePopup}
+        type="project"
       />
     </>
   );
