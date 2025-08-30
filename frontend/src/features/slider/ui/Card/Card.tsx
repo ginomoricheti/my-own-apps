@@ -15,6 +15,13 @@ const Card = ({ projectId }: CardProps) => {
 
   const currentGoal = data.goals?.find(goal => !goal.isCompleted);
 
+  const truncateText = (text: string, maxLenght: number) => {
+    if (text.length > maxLenght) {
+      return text.slice(0, 6) + "...";
+    }
+    return text;
+  }
+
   let goalInfo = null;
   if (currentGoal) {
     const remainingMinutes = Math.max(currentGoal.targetMinutes - currentGoal.completedMinutes, 0);
@@ -24,7 +31,7 @@ const Card = ({ projectId }: CardProps) => {
     goalInfo = (
       <>
         <p>
-          <span>Actual Goal:</span> {currentGoal.title}
+          <span>Actual Goal:</span> {truncateText(currentGoal.title, 12)}
         </p>
         <p>
           <span>Remaining:</span> {remainingHours}h {remainingMins}m
@@ -41,7 +48,7 @@ const Card = ({ projectId }: CardProps) => {
   return (
     <div className={styles.cardBox}>
       <p className={styles.time}><span>{hours}h</span></p>
-      <h3>{data.name}</h3>
+      <h3>{truncateText(data.name, 15)}</h3>
       <div className={styles.details}>
         {goalInfo}
       </div>
